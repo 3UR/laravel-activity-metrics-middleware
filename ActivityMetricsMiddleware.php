@@ -37,25 +37,21 @@ class ActivityMetricsMiddleware
      */
     public function handle(Request $request, Closure $next): Response
     {
-        // btw we dont check if the ip is unique but if needed it isnt hard to implement
-
-        // Cache the device and country for this IP address
         $ip = $request->ip();
         $cacheKey = "activity-metrics:$ip";
-        $cachedData = Cache::get($cacheKey);
+        $cachedData = Cache::get($cacheKey); // Get it from cache
 
-        if ($cachedData) {
+        if ($cachedData) { // If its cached use it!
             [$device, $country] = $cachedData;
-        } else {
+        } else { // Its not cached so cache it
             $userAgent = $request->header('User-Agent');
             $device = $this->getDeviceFromUserAgent($userAgent);
             $country = $this->getCountryFromIp($ip);
-            Cache::put($cacheKey, [$device, $country], 60 * 1); // Cache for 1 hour
+            Cache::put($cacheKey, [$device, $country], 60 * 5); // Cache for 5 hours
         }
 
         // Increment a counter for the DAU (Daily Active Users)
         $this->dauCounter->incBy(1, [$device, $country]);
-
         return $next($request);
     }
 
@@ -66,7 +62,8 @@ class ActivityMetricsMiddleware
     {
         $agent = new Agent();
         $device = $agent->device($userAgent);
-        return $device ?: 'unknown';
+        $platform = $agent->platform($userAgent); // fallback 
+        return $device ?: ($platform ?: 'unknown');
     }
 
     /**
